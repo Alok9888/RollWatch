@@ -1,0 +1,48 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-local-dev}
+    container_name: rollwatch-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      ROLLWATCH_DB_PATH: /data/rollwatch.db
+      ROLLWATCH_WEBHOOK_SECRET: ${ROLLWATCH_WEBHOOK_SECRET:-dev-webhook-secret}
+      ROLLWATCH_CORS_ORIGINS: ${ROLLWATCH_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      ROLLWATCH_PROBE_TIMEOUT_SEC: ${ROLLWATCH_PROBE_TIMEOUT_SEC:-10}
+      ROLLWATCH_TLS_EXPIRY_WARNING_DAYS: ${ROLLWATCH_TLS_EXPIRY_WARNING_DAYS:-14}
+    volumes:
+      - rollwatch_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    container_name: rollwatch-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rollwatch_data:
