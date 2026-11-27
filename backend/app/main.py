@@ -131,10 +131,21 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=r"https://rollwatch.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def ensure_db_connected(request, call_next):
+        if db._conn is None:  # noqa: SLF001
+            await db.connect()
+        return await call_next(request)
+
+    @app.get("/", tags=["observability"])
+    async def root() -> dict[str, str]:
+        return {"service": "RollWatch API", "status": "ok", "docs": "/docs", "health": "/health"}
 
     # --- Health & Metrics ---
 
